@@ -5,6 +5,8 @@ import (
 	"container/list"
 )
 
+var logger *log.Logger
+
 var iotlist list.List		//物联网客户单列表
 
 func delClient(client *ClientInfo){
@@ -77,7 +79,18 @@ func processRecvData(client *ClientInfo, data []byte){
 	copy(remain, protoBuffer)
 }
 
-func sendBackHeartBeat(client *Client){
+//回复iot心跳
+func sendBackHeartBeat(client *ClientInfo,msg []byte){
+	fmt.Println("收到心跳：", msg)
+}
+
+//下发iot列表信息
+func sendIotList(client *ClientInfo){
+	
+}
+
+//转发控制数据
+func forwardCtlMsg(client *ClientInfo,ctlData []byte){
 	
 }
 
@@ -85,8 +98,18 @@ func processMsg(client *ClientInfo, msg []byte){
 	type := int(byte[0])
 	if(type == 0){
 		//心跳
-		sendBackHeartBeat(client)
-	}else if(type == 1){
-		
+		sendBackHeartBeat(client, msg[1:])
+	}else if(type == 2){
+		//iot to hub
+		fmt.Println("iot data:", msg)
+	}else if(type == 10){
+		//ctl 向hub请求iot列表
+		sendIotList(client)
+	}else if(type == 11){
+		//ctl 向 hub发控制消息
+		forwardCtlMsg(client,msg[1:])
+	}else{
+		//不支持的消息类型
+		fmt.Println("不支持的消息类型：", type)
 	}
 }
