@@ -67,7 +67,7 @@ func (c *ClientInfo) SendData(data []byte){
 
 func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
 	fmt.Println("start server addr:", laddr)
-	ln, err := net.Listen("tcp", laddr)
+	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		fmt.Println("服务器启动失败")
 		return
