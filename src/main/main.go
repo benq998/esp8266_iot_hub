@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"container/list"
+	"bytes"
 )
 
 //物联网客户单列表
@@ -24,7 +25,6 @@ func main() {
 	go Server(ClientType_CTL, "0.0.0.0:7891", ch)
 	for x := range ch{
 		//处理各种收到的事件
-		fmt.Println(x)
 		evtType := x.EventType
 		client := x.Client
 		if(evtType == NewClient){
@@ -54,28 +54,32 @@ func disConn(client *ClientInfo){
 var protoBuffer = make([]byte, 0, 1024)
 
 func processRecvData(client *ClientInfo, data []byte){
-	fmt.Println("收到数据长度：", len(data))
+	fmt.Printf("收到数据(%d)：%s\n", len(data), hexToString(data))
 	protoBuffer = append(protoBuffer, data...)
-	if(len(protoBuffer) < 3){
-		//数据不够
-		return
-	}	
-	if(protoBuffer[0] != 0x36 || protoBuffer[1] != 0x50){
-		//header fail, shoud disconn
-		disConn(client)
-		return
+	fmt.Printf("和已有数据连接后(%d)：%s\n", len(protoBuffer), hexToString(protoBuffer))
+	loop: for{
+		if(len(protoBuffer) < 3){
+			//数据不够
+			break loop
+		}	
+		if(protoBuffer[0] != 0x36 || protoBuffer[1] != 0x50){
+			//header fail, shoud disconn
+			disConn(client)
+			break loop
+		}
+		
+		datalen := int(protoBuffer[2])
+		if((datalen + 3) > len(protoBuffer)){
+			//数据不够
+			break loop
+		}
+		//数据足够一帧消息的
+		msg := protoBuffer[3:datalen + 3]
+		processMsg(client, msg)
+		remain := protoBuffer[datalen + 3:]
+		copy(remain, protoBuffer)
+		protoBuffer = protoBuffer[:len(remain)]
 	}
-	
-	datalen := int(protoBuffer[2])
-	if((datalen + 3) > len(protoBuffer)){
-		//数据不够
-		return
-	}
-	//数据足够一帧消息的
-	msg := protoBuffer[3:datalen + 3]
-	processMsg(client, msg)
-	remain := protoBuffer[datalen + 3:]
-	copy(remain, protoBuffer)
 }
 
 func sendProtocol(client *ClientInfo, msg []byte){
@@ -120,15 +124,18 @@ func forwardCtlMsg(client *ClientInfo, ctlData []byte){
 		iot := iotlist.Front().Value.(*ClientInfo)
 		sendProtocol(iot, append([]byte{1}, ctlData...))
 		//转发完成
+		fmt.Println("转发控制消息完成")
 		forwardRst = append(forwardRst, 0)
 	}else{
 		//没有客户端，无法转发
+		fmt.Println("还没有iot设备，无法转发控制消息")
 		forwardRst = append(forwardRst, 1)
 	}
 	sendProtocol(client, forwardRst)
 }
 
 func processMsg(client *ClientInfo, msg []byte){
+	fmt.Println(hexToString(msg))
 	msgType := int(msg[0])
 	if(msgType == 0){
 		//心跳
@@ -146,4 +153,17 @@ func processMsg(client *ClientInfo, msg []byte){
 		//不支持的消息类型
 		fmt.Println("不支持的消息类型：", msgType)
 	}
+}
+
+func hexToString(data []byte)string{
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf,"HEX:")
+	for x:=range data{
+		if(x > 0){
+			fmt.Fprintf(&buf," %02X", data[x])
+		}else{
+			fmt.Fprintf(&buf,"%02X", data[x])
+		}
+	}
+	return buf.String()
 }
