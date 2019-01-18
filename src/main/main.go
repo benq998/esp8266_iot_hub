@@ -5,9 +5,8 @@ import (
 	"container/list"
 )
 
-var logger *log.Logger
-
-var iotlist list.List		//物联网客户单列表
+//物联网客户单列表
+var iotlist = list.New()
 
 func delClient(client *ClientInfo){
 	del: for e := iotlist.Front(); e != nil; e = e.Next() {
@@ -79,37 +78,72 @@ func processRecvData(client *ClientInfo, data []byte){
 	copy(remain, protoBuffer)
 }
 
+func sendProtocol(client *ClientInfo, msg []byte){
+	msgLen := len(msg)
+	outMsg := make([]byte, msgLen + 3)
+	outMsg[0] = 0x36
+	outMsg[1] = 0x50
+	outMsg[2] = byte(msgLen)
+	copy(outMsg[3:], msg)
+	client.SendData(outMsg)
+}
+
 //回复iot心跳
 func sendBackHeartBeat(client *ClientInfo,msg []byte){
 	fmt.Println("收到心跳：", msg)
+	sendProtocol(client, msg)
 }
 
 //下发iot列表信息
 func sendIotList(client *ClientInfo){
-	
+	msg := make([]byte,0,256)
+	iotCount := byte(iotlist.Len())
+	msg = append(msg, 100, iotCount)
+	for e := iotlist.Front(); e != nil; e = e.Next(){
+		msg = writeIotClientInfo(msg, e.Value.(*ClientInfo))
+	}
+	sendProtocol(client, msg)
 }
 
-//转发控制数据
-func forwardCtlMsg(client *ClientInfo,ctlData []byte){
-	
+func writeIotClientInfo(outBuf []byte, client *ClientInfo)[]byte{
+	ipport := client.GetAddressAsBytes()
+	outBuf = append(outBuf, ipport...)
+	outBuf = append(outBuf, client.GetConnTimeAsBytes()...)
+	return outBuf
+}
+
+//转发控制数据,ctlData里只是控制数据，没有消息类型
+func forwardCtlMsg(client *ClientInfo, ctlData []byte){
+	iotCnt := iotlist.Len()
+	forwardRst := []byte{101}
+	if(iotCnt > 0){
+		iot := iotlist.Front().Value.(*ClientInfo)
+		sendProtocol(iot, append([]byte{1}, ctlData...))
+		//转发完成
+		forwardRst = append(forwardRst, 0)
+	}else{
+		//没有客户端，无法转发
+		forwardRst = append(forwardRst, 1)
+	}
+	sendProtocol(client, forwardRst)
 }
 
 func processMsg(client *ClientInfo, msg []byte){
-	type := int(byte[0])
-	if(type == 0){
+	msgType := int(msg[0])
+	if(msgType == 0){
 		//心跳
-		sendBackHeartBeat(client, msg[1:])
-	}else if(type == 2){
+		sendBackHeartBeat(client, msg)
+	}else if(msgType == 2){
 		//iot to hub
 		fmt.Println("iot data:", msg)
-	}else if(type == 10){
+	}else if(msgType == 10){
 		//ctl 向hub请求iot列表
 		sendIotList(client)
-	}else if(type == 11){
+	}else if(msgType == 11){
 		//ctl 向 hub发控制消息
 		forwardCtlMsg(client,msg[1:])
 	}else{
 		//不支持的消息类型
-		fmt.Println("不支持的消息类型：", type)
+		fmt.Println("不支持的消息类型：", msgType)
 	}
 }

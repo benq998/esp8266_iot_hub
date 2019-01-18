@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"bytes"
+	reg "regexp"
+	strv "strconv"
+	binary "encoding/binary"
 )
 
 type EventTypeVal int
@@ -30,6 +34,30 @@ type ClientInfo struct{
 	conn net.Conn
 	ClientType ClientTypeVal		//客户端类型，0-iot客户端，1-控制端
 	ConnTime int64
+}
+
+//返回4字节ip，2字节端口
+func (c *ClientInfo) GetAddressAsBytes()(ipport []byte){
+	buf := new(bytes.Buffer)
+	addr := c.conn.RemoteAddr()
+	part,_ := reg.Compile("\\.|:")
+	ips := part.Split(addr.String(), -1)
+	for x := range ips{
+		i,_ := strv.Atoi(ips[x])
+		_ = binary.Write(buf, binary.BigEndian, i)
+	}
+	return buf.Bytes()
+}
+
+//返回4字节的秒数
+func (c *ClientInfo) GetConnTimeAsBytes()[]byte{
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.BigEndian, c.ConnTime)
+	if(err != nil){
+		return buf.Bytes()
+	}else{
+		return []byte{0,0,0,0}
+	}
 }
 
 func (c *ClientInfo) SendData(data []byte){
