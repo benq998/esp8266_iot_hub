@@ -72,6 +72,7 @@ func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
 		fmt.Println("服务器启动失败")
 		return
 	}
+	fmt.Println("监听成功，等待客户端连接")
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
