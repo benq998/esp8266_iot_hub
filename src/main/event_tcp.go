@@ -66,7 +66,7 @@ func (c *ClientInfo) SendData(data []byte){
 }
 
 func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
-	fmt.Println("OK")
+	fmt.Println("start server addr:", laddr)
 	ln, err := net.Listen("tcp", laddr)
 	if err != nil {
 		fmt.Println("服务器启动失败")
@@ -83,7 +83,7 @@ func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
 }
 
 func handleConnection(clientType ClientTypeVal, conn net.Conn, ch chan IotEvent){
-	fmt.Println("OK")
+	fmt.Println("new conn:", conn.RemoteAddr().String())
 	client := ClientInfo{conn:conn,ClientType:clientType,ConnTime:time.Now().Unix()}
 	evt := IotEvent{EventType:NewClient,Client:&client}
 	ch <- evt
@@ -91,6 +91,7 @@ func handleConnection(clientType ClientTypeVal, conn net.Conn, ch chan IotEvent)
 }
 
 func readSocket(client *ClientInfo, ch chan IotEvent){
+	fmt.Println("readSocket:", client.conn.RemoteAddr().String())
 	buf := make([]byte, 1024)
 	loop: for{
 		n, err := client.conn.Read(buf)
