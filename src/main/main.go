@@ -20,8 +20,8 @@ func delClient(client *ClientInfo){
 func main() {
 	fmt.Println("Start")
 	ch := make(chan IotEvent, 10)
-	go Server(ClientType_IOT, ":7890", ch)
-	go Server(ClientType_CTL, ":7891", ch)
+	go Server(ClientType_IOT, "0.0.0.0:7890", ch)
+	go Server(ClientType_CTL, "0.0.0.0:7891", ch)
 	for x := range ch{
 		//处理各种收到的事件
 		fmt.Println(x)
