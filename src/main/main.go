@@ -110,8 +110,7 @@ func sendIotList(client *ClientInfo){
 }
 
 func writeIotClientInfo(outBuf []byte, client *ClientInfo)[]byte{
-	ipport := client.GetAddressAsBytes()
-	outBuf = append(outBuf, ipport...)
+	outBuf = append(outBuf, client.GetAddressAsBytes()...)
 	outBuf = append(outBuf, client.GetConnTimeAsBytes()...)
 	return outBuf
 }

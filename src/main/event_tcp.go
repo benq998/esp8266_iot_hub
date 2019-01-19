@@ -40,11 +40,20 @@ type ClientInfo struct{
 func (c *ClientInfo) GetAddressAsBytes()(ipport []byte){
 	buf := new(bytes.Buffer)
 	addr := c.conn.RemoteAddr()
+//	fmt.Println("addr:",addr.String())
 	part,_ := reg.Compile("\\.|:")
 	ips := part.Split(addr.String(), -1)
+//	fmt.Println("ips:",ips)
 	for x := range ips{
-		i,_ := strv.Atoi(ips[x])
-		_ = binary.Write(buf, binary.BigEndian, i)
+		if(x <= 3){
+			b,_ := strv.Atoi(ips[x])
+			fmt.Println(ips[x],"=>",b)
+			_ = binary.Write(buf, binary.BigEndian, byte(b))
+		}else{
+			s,_ := strv.Atoi(ips[x])
+			fmt.Println(ips[x],"=>",s)
+			_ = binary.Write(buf, binary.BigEndian, int16(s))
+		}
 	}
 	return buf.Bytes()
 }
@@ -52,8 +61,9 @@ func (c *ClientInfo) GetAddressAsBytes()(ipport []byte){
 //返回4字节的秒数
 func (c *ClientInfo) GetConnTimeAsBytes()[]byte{
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, c.ConnTime)
-	if(err != nil){
+//	fmt.Println("c.ConnTime:", c.ConnTime)
+	err := binary.Write(buf, binary.BigEndian, int32(c.ConnTime))
+	if(err == nil){
 		return buf.Bytes()
 	}else{
 		return []byte{0,0,0,0}
