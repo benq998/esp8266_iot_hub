@@ -39,7 +39,8 @@ func main() {
 	ch := make(chan IotEvent, 10)
 	go Server(ClientType_IOT, "0.0.0.0:7890", ch)
 	go Server(ClientType_CTL, "0.0.0.0:7891", ch)
-	go breakHeartBeatTimeOutClients();
+	go breakHeartBeatTimeOutClients()
+	go startHttp()
 	for x := range ch{
 		//处理各种收到的事件
 		evtType := x.EventType
@@ -138,10 +139,7 @@ func forwardCtlMsg(client *ClientInfo, ctlData []byte){
 	iotCnt := iotlist.Len()
 	forwardRst := []byte{101}
 	if(iotCnt > 0){
-//		iot := iotlist.Front().Value.(*ClientInfo)
-		for iot:=iotlist.Front();iot!=nil;iot = iot.Next() {
-			sendProtocol(iot.Value.(*ClientInfo), append([]byte{1}, ctlData...))
-		}
+		sendCtlData(ctlData)
 		//转发完成
 		fmt.Println("转发控制消息完成")
 		forwardRst = append(forwardRst, 0)
@@ -151,6 +149,13 @@ func forwardCtlMsg(client *ClientInfo, ctlData []byte){
 		forwardRst = append(forwardRst, 1)
 	}
 	sendProtocol(client, forwardRst)
+}
+
+func sendCtlData(data []byte){
+	data = append([]byte{1}, data...)
+	for iot:=iotlist.Front();iot!=nil;iot = iot.Next() {
+		sendProtocol(iot.Value.(*ClientInfo), append([]byte{1}, data...))
+	}
 }
 
 func processMsg(client *ClientInfo, msg []byte){
