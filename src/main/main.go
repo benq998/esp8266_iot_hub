@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"container/list"
 	"bytes"
+	"time"
 )
 
 //物联网客户单列表
@@ -11,10 +12,25 @@ var iotlist = list.New()
 
 func delClient(client *ClientInfo){
 	del: for e := iotlist.Front(); e != nil; e = e.Next() {
-		if(e.Value == client){
+		if(e.Value.(*ClientInfo) == client){
 			iotlist.Remove(e)
 			break del
 		}
+	}
+}
+
+func breakHeartBeatTimeOutClients(){
+	for{
+		now := int32(time.Now().Unix())
+		for e:= iotlist.Front(); e != nil; e = e.Next() {
+			client := e.Value.(*ClientInfo)
+			if((now - client.LastHeartBeatTime) > 30){//超过30秒强制断开
+				client.forceDisconnect();
+				iotlist.Remove(e)
+				fmt.Println("强制断开心跳超时的设备链接:",client.GetRemoteAddress())
+			}
+		}
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -23,6 +39,7 @@ func main() {
 	ch := make(chan IotEvent, 10)
 	go Server(ClientType_IOT, "0.0.0.0:7890", ch)
 	go Server(ClientType_CTL, "0.0.0.0:7891", ch)
+	go breakHeartBeatTimeOutClients();
 	for x := range ch{
 		//处理各种收到的事件
 		evtType := x.EventType
@@ -56,7 +73,7 @@ var protoBuffer = make([]byte, 0, 1024)
 func processRecvData(client *ClientInfo, data []byte){
 	fmt.Printf("收到数据(%d)：%s\n", len(data), hexToString(data))
 	protoBuffer = append(protoBuffer, data...)
-	fmt.Printf("和已有数据连接后(%d)：%s\n", len(protoBuffer), hexToString(protoBuffer))
+//	fmt.Printf("和已有数据连接后(%d)：%s\n", len(protoBuffer), hexToString(protoBuffer))
 	loop: for{
 		if(len(protoBuffer) < 3){
 			//数据不够
@@ -94,7 +111,8 @@ func sendProtocol(client *ClientInfo, msg []byte){
 
 //回复iot心跳
 func sendBackHeartBeat(client *ClientInfo,msg []byte){
-	fmt.Println("收到心跳：", msg)
+//	fmt.Println("收到心跳：", msg)
+	client.LastHeartBeatTime = int32(time.Now().Unix())
 	sendProtocol(client, msg)
 }
 
@@ -120,8 +138,10 @@ func forwardCtlMsg(client *ClientInfo, ctlData []byte){
 	iotCnt := iotlist.Len()
 	forwardRst := []byte{101}
 	if(iotCnt > 0){
-		iot := iotlist.Front().Value.(*ClientInfo)
-		sendProtocol(iot, append([]byte{1}, ctlData...))
+//		iot := iotlist.Front().Value.(*ClientInfo)
+		for iot:=iotlist.Front();iot!=nil;iot = iot.Next() {
+			sendProtocol(iot.Value.(*ClientInfo), append([]byte{1}, ctlData...))
+		}
 		//转发完成
 		fmt.Println("转发控制消息完成")
 		forwardRst = append(forwardRst, 0)
@@ -134,7 +154,7 @@ func forwardCtlMsg(client *ClientInfo, ctlData []byte){
 }
 
 func processMsg(client *ClientInfo, msg []byte){
-	fmt.Println(hexToString(msg))
+	//fmt.Println(hexToString(msg))
 	msgType := int(msg[0])
 	if(msgType == 0){
 		//心跳

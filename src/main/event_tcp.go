@@ -33,7 +33,12 @@ type IotEvent struct{
 type ClientInfo struct{
 	conn net.Conn
 	ClientType ClientTypeVal		//客户端类型，0-iot客户端，1-控制端
-	ConnTime int64
+	ConnTime int32					//unix 时间戳，秒
+	LastHeartBeatTime int32			//unix 时间戳，秒
+}
+
+func (c *ClientInfo) GetRemoteAddress() string{
+	return c.conn.RemoteAddr().String()
 }
 
 //返回4字节ip，2字节端口
@@ -47,11 +52,11 @@ func (c *ClientInfo) GetAddressAsBytes()(ipport []byte){
 	for x := range ips{
 		if(x <= 3){
 			b,_ := strv.Atoi(ips[x])
-			fmt.Println(ips[x],"=>",b)
+//			fmt.Println(ips[x],"=>",b)
 			_ = binary.Write(buf, binary.BigEndian, byte(b))
 		}else{
 			s,_ := strv.Atoi(ips[x])
-			fmt.Println(ips[x],"=>",s)
+//			fmt.Println(ips[x],"=>",s)
 			_ = binary.Write(buf, binary.BigEndian, int16(s))
 		}
 	}
@@ -62,7 +67,7 @@ func (c *ClientInfo) GetAddressAsBytes()(ipport []byte){
 func (c *ClientInfo) GetConnTimeAsBytes()[]byte{
 	buf := new(bytes.Buffer)
 //	fmt.Println("c.ConnTime:", c.ConnTime)
-	err := binary.Write(buf, binary.BigEndian, int32(c.ConnTime))
+	err := binary.Write(buf, binary.BigEndian, c.ConnTime)
 	if(err == nil){
 		return buf.Bytes()
 	}else{
@@ -73,6 +78,11 @@ func (c *ClientInfo) GetConnTimeAsBytes()[]byte{
 func (c *ClientInfo) SendData(data []byte){
 	n,_ := c.conn.Write(data)
 	fmt.Println("写出数据：", data,",长度：",n)
+}
+
+//强制断开
+func (c *ClientInfo) forceDisconnect(){
+	c.conn.Close()
 }
 
 func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
@@ -95,7 +105,7 @@ func Server(clientType ClientTypeVal,laddr string, ch chan IotEvent){
 
 func handleConnection(clientType ClientTypeVal, conn net.Conn, ch chan IotEvent){
 	fmt.Println("new conn:", conn.RemoteAddr().String())
-	client := ClientInfo{conn:conn,ClientType:clientType,ConnTime:time.Now().Unix()}
+	client := ClientInfo{conn:conn,ClientType:clientType,ConnTime:int32(time.Now().Unix())}
 	evt := IotEvent{EventType:NewClient,Client:&client}
 	ch <- evt
 	go readSocket(&client, ch)
